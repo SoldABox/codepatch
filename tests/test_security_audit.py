@@ -18,7 +18,8 @@ class SecurityAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "config.py").write_text(
-                'api_key = "abcdefghijklmnopqrstuvwx"\n', encoding="utf-8"
+                'api_key = "abcdefghijklmnopqrstuvwx"\n',  # security-audit: allow
+                encoding="utf-8",
             )
             result = audit_repository(root)
             self.assertFalse(result.passed)
