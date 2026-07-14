@@ -8,7 +8,7 @@
 
 **CodePatch** is a lightweight, safe, and automated tool for repairing and protecting source code. It helps developers, learners, and educators detect common programming issues, produce safer Python code, and prepare Warcraft III custom-map source for controlled releases.
 
-The project does not claim that distributed client-side game code can be made impossible to extract. Protection features focus on safe build separation, conservative source transformation, asset-path randomization, and verifiable release manifests.
+The project does not claim that distributed client-side game code can be made impossible to extract. Protection features focus on safe build separation, conservative source transformation, asset-path randomization, signed manifests, and release verification.
 
 ---
 
@@ -21,18 +21,23 @@ The project does not claim that distributed client-side game code can be made im
 - Provides a command-line interface
 - Protects extracted Warcraft III Lua/JASS release sources
 - Randomizes Warcraft III imported asset paths and rewrites script references
-- Generates SHA-256 release manifests for provenance and tamper comparison
+- Generates SHA-256 release manifests without exposing original asset paths
+- Supports optional HMAC-SHA256 manifest signing
+- Detects missing, changed and unexpected release files
+- Runs regression checks across Python 3.9, 3.11 and 3.13
 
 ---
 
 ## Warcraft III protection
 
 ```bash
-python warcraft3_protector.py private-map-source release/MyMap-1.0 \
+python warcraft3_protector.py protect private-map-source release/MyMap-1.0 \
   --build-id JG-WC3-20260714-001
+
+python warcraft3_protector.py verify release/MyMap-1.0
 ```
 
-The source and output directories must be separate. Keep the editable map source private and distribute only a reviewed, repacked release build.
+The source and output directories must be separate. Keep the editable map source, signing key and optional private mapping report outside the public release.
 
 Detailed instructions and limitations are in [`docs/WARCRAFT3_PROTECTION.md`](docs/WARCRAFT3_PROTECTION.md).
 
