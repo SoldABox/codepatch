@@ -5,13 +5,20 @@ import argparse
 import json
 import os
 import statistics
+import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Dict, Union
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from file_vault import decrypt_vault, protect_files, verify_vault
 
 PASSWORD = "benchmark password with sufficient length"
+Metric = Union[float, int, bool]
 
 
 def make_fixture(root: Path, total_bytes: int, files: int) -> Path:
@@ -24,13 +31,13 @@ def make_fixture(root: Path, total_bytes: int, files: int) -> Path:
     return source
 
 
-def run_once(total_bytes: int, files: int) -> dict[str, float | int | bool]:
+def run_once(total_bytes: int, files: int) -> Dict[str, Metric]:
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         source = make_fixture(root, total_bytes, files)
         vault = root / "benchmark.cpvault"
         start = time.perf_counter()
-        result = protect_files([source], vault, PASSWORD, manifest_key="benchmark-manifest-key")
+        protect_files([source], vault, PASSWORD, manifest_key="benchmark-manifest-key")
         protect_seconds = time.perf_counter() - start
 
         start = time.perf_counter()
@@ -38,8 +45,7 @@ def run_once(total_bytes: int, files: int) -> dict[str, float | int | bool]:
         verify_seconds = time.perf_counter() - start
 
         start = time.perf_counter()
-        restored = root / "restored"
-        restored_files = decrypt_vault(vault, restored, PASSWORD)
+        restored_files = decrypt_vault(vault, root / "restored", PASSWORD)
         decrypt_seconds = time.perf_counter() - start
 
         mib = total_bytes / (1024 * 1024) if total_bytes else 0.0
@@ -73,11 +79,7 @@ def main() -> int:
     results = [run_once(args.size_mib * 1024 * 1024, args.files) for _ in range(args.runs)]
     summary = {
         "schema": 1,
-        "configuration": {
-            "size_mib": args.size_mib,
-            "files": args.files,
-            "runs": args.runs,
-        },
+        "configuration": {"size_mib": args.size_mib, "files": args.files, "runs": args.runs},
         "median": {
             "protect_seconds": statistics.median(float(r["protect_seconds"]) for r in results),
             "verify_seconds": statistics.median(float(r["verify_seconds"]) for r in results),
