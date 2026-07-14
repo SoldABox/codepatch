@@ -83,13 +83,15 @@ Detailed instructions and limitations are in [`docs/WARCRAFT3_PROTECTION.md`](do
 python -m unittest discover -s tests -v
 ```
 
+GitHub Actions tests Python 3.10, 3.11, 3.12 and 3.13, plus a repeatable encryption/recovery benchmark.
+
 ---
 
 ## Getting Started
 
 ### Requirements
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - `cryptography` for encrypted file vaults
 
 ### Installation
