@@ -36,11 +36,7 @@ def sha256_file(path: Path) -> str:
 
 
 def _strip_lua_comments(text: str) -> str:
-    """Remove ordinary Lua comments while preserving quoted strings.
-
-    This deliberately avoids aggressive parsing and leaves long bracket strings
-    unchanged to reduce the chance of corrupting valid map scripts.
-    """
+    """Remove ordinary Lua comments while preserving quoted strings."""
     out: list[str] = []
     i = 0
     quote: str | None = None
@@ -99,9 +95,15 @@ def _asset_token(path: Path, salt: str) -> str:
 def _replace_asset_references(text: str, mappings: dict[str, str]) -> str:
     updated = text
     for old, new in sorted(mappings.items(), key=lambda item: len(item[0]), reverse=True):
-        candidates = {old, old.replace("/", "\\"), old.replace("\\", "/")}
-        for candidate in candidates:
-            updated = updated.replace(candidate, new.replace("/", "\\"))
+        old_backslash = old.replace("/", "\\")
+        new_backslash = new.replace("/", "\\")
+        variants = (
+            (old, new),
+            (old_backslash, new_backslash),
+            (old_backslash.replace("\\", "\\\\"), new_backslash.replace("\\", "\\\\")),
+        )
+        for candidate, replacement in variants:
+            updated = updated.replace(candidate, replacement)
     return updated
 
 
@@ -122,19 +124,15 @@ def protect_project(source_dir: Path, output_dir: Path, build_id: str | None = N
     assets = [p for p in output_dir.rglob("*") if p.is_file() and p.suffix.lower() in ASSET_SUFFIXES]
     for asset in assets:
         rel = asset.relative_to(output_dir)
-        new_rel = Path("war3mapImported") / _asset_token(rel, build_id)[:2] / (
-            _asset_token(rel, build_id) + asset.suffix.lower()
-        )
+        token = _asset_token(rel, build_id)
+        new_rel = Path("war3mapImported") / token[:2] / (token + asset.suffix.lower())
         mappings[rel.as_posix()] = new_rel.as_posix()
 
     protected_scripts = 0
     for script in [p for p in output_dir.rglob("*") if p.is_file() and p.name.lower() in SCRIPT_NAMES]:
         text = script.read_text(encoding="utf-8")
         text = _replace_asset_references(text, mappings)
-        if script.name.lower().endswith(".lua"):
-            text = protect_lua(text)
-        else:
-            text = protect_jass(text)
+        text = protect_lua(text) if script.name.lower().endswith(".lua") else protect_jass(text)
         script.write_text(text, encoding="utf-8", newline="\n")
         protected_scripts += 1
 
