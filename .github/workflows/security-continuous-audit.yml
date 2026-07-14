@@ -34,10 +34,11 @@ jobs:
             --minimum-score 100 \
             --output audit-results/repository-security.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: repository-security-audit
           path: audit-results/repository-security.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
 
   dependency-audit:
@@ -63,7 +64,9 @@ jobs:
             --format json \
             --output audit-results/dependency-audit.json
       - name: Generate CycloneDX SBOM
+        if: always()
         run: |
+          mkdir -p audit-results
           python -m pip_audit \
             --requirement requirements-security.txt \
             --format cyclonedx-json \
@@ -102,8 +105,9 @@ jobs:
             --max-decrypt-seconds 90 \
             --output audit-results/file-vault-64mib.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: large-capacity-benchmark
           path: audit-results/file-vault-64mib.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
