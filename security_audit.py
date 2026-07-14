@@ -16,8 +16,10 @@ from typing import Iterable, List
 
 FORBIDDEN_SUFFIXES = {".cpvault", ".p12", ".pfx", ".kdbx", ".pem", ".key"}
 FORBIDDEN_NAMES = {".env", "credentials.json", "secrets.json", "wallet.dat", "seed.txt"}
+GENERIC_SECRET_PATTERN = re.compile(
+    r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"](?P<value>[^'\"\n]{12,})['\"]"
+)
 SECRET_PATTERNS = {
-    "generic_api_key": re.compile(r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][^'\"\n]{12,}['\"]"),
     "private_key_header": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     "openai_key": re.compile(r"sk-(?:proj-)?[A-Za-z0-9_-]{20,}"),
     "aws_access_key": re.compile(r"AKIA[0-9A-Z]{16}"),
@@ -27,6 +29,11 @@ TEXT_SUFFIXES = {
     ".cfg", ".js", ".ts", ".tsx", ".jsx", ".sh", ".ps1", ".bat",
 }
 MAX_SCAN_BYTES = 2 * 1024 * 1024
+PLACEHOLDER_MARKERS = {
+    "placeholder", "example", "sample", "benchmark", "correct horse",
+    "use-a-", "use_a_", "your-", "your_", "change-me", "changeme",
+    "the-original", "sufficient length", "long-random", "test-secret",
+}
 
 
 @dataclass(frozen=True)
@@ -57,6 +64,15 @@ def _tracked_files(root: Path) -> list[Path]:
         return [path for path in root.rglob("*") if path.is_file() and ".git" not in path.parts]
 
 
+def _looks_like_placeholder(value: str) -> bool:
+    lowered = value.lower().strip()
+    if any(marker in lowered for marker in PLACEHOLDER_MARKERS):
+        return True
+    if value.upper() == value and re.fullmatch(r"[A-Z0-9_\-]+", value):
+        return True
+    return False
+
+
 def _scan_text(path: Path, relative: str) -> Iterable[Finding]:
     try:
         if path.stat().st_size > MAX_SCAN_BYTES:
@@ -68,6 +84,17 @@ def _scan_text(path: Path, relative: str) -> Iterable[Finding]:
     for line_number, line in enumerate(text.splitlines(), start=1):
         if "security-audit: allow" in line:
             continue
+
+        generic_match = GENERIC_SECRET_PATTERN.search(line)
+        if generic_match and not _looks_like_placeholder(generic_match.group("value")):
+            findings.append(Finding(
+                severity="CRITICAL",
+                rule="generic_api_key",
+                path=relative,
+                line=line_number,
+                message="Possible secret material in tracked text",
+            ))
+
         for rule, pattern in SECRET_PATTERNS.items():
             if pattern.search(line):
                 findings.append(Finding(
@@ -100,7 +127,12 @@ def audit_repository(root: Path) -> AuditResult:
 
     deductions = {"CRITICAL": 25, "HIGH": 12, "MEDIUM": 5, "LOW": 1}
     score = max(0, 100 - sum(deductions.get(item.severity, 1) for item in findings))
-    return AuditResult(score=score, passed=not any(f.severity in {"CRITICAL", "HIGH"} for f in findings), files_scanned=len(files), findings=findings)
+    return AuditResult(
+        score=score,
+        passed=not any(f.severity in {"CRITICAL", "HIGH"} for f in findings),
+        files_scanned=len(files),
+        findings=findings,
+    )
 
 
 def main() -> int:
