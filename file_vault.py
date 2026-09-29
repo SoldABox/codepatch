@@ -338,7 +338,7 @@ def main() -> int:
         return 0
     if args.command == "verify":
         result = verify_vault(args.vault, args.manifest, manifest_key=os.environ.get(args.manifest_key_env))
-        print(json.dumps(result.__dict__, indent=2))
+        print(json.dumps({"valid": result.valid, "ciphertext_hash_valid": result.ciphertext_hash_valid, "manifest_signature_valid": result.manifest_signature_valid}, indent=2))
         return 0 if result.valid else 1
     count = decrypt_vault(args.vault, args.output, _password(args.password_env))
     print(json.dumps({"output": str(args.output.resolve()), "files": count}, indent=2))
